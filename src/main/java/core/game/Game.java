@@ -248,6 +248,11 @@ public abstract class Game {
 	 */
 	protected Types.ACTIONS[] avatarLastAction;
 
+	/**
+	 * Avatar position history for each frame
+	 */
+	public ArrayList<Vector2d>[] avatarPositionHistory;
+
 	public int no_players = 1; // default to single player
 
 	public int no_counters = 0; // default no counters
@@ -293,9 +298,11 @@ public abstract class Game {
 	public void initMulti() {
 		avatars = new MovingAvatar[no_players];
 		avatarLastAction = new Types.ACTIONS[no_players];
-		for (int i = 0; i < no_players; i++)
+		avatarPositionHistory = new ArrayList[no_players]; // 添加这行
+		for (int i = 0; i < no_players; i++) {
 			avatarLastAction[i] = Types.ACTIONS.ACTION_NIL;
-
+			avatarPositionHistory[i] = new ArrayList<Vector2d>(); // 添加这行
+		}
 		counter = new int[no_counters];
 		humanPlayer = new boolean[no_players];
 	}
@@ -758,6 +765,15 @@ public abstract class Game {
 		historicEvents.clear();
 
 		resetShieldEffects();
+
+		// 在现有的reset代码最后添加：
+		if (avatarPositionHistory != null) {
+			for (int i = 0; i < no_players; i++) {
+				if (avatarPositionHistory[i] != null) {
+					avatarPositionHistory[i].clear();
+				}
+			}
+		}
 	}
 
 	/**
@@ -1068,6 +1084,8 @@ public abstract class Game {
 	 *                   Players that play this game.
 	 * @param randomSeed
 	 *                   sampleRandom seed for the whole game.
+	 * @param humanID
+	 *                   ID of the human player
 	 */
 	private void prepareGame(Player[] players, int randomSeed, int humanID) {
 		// Start tick counter.
@@ -1095,7 +1113,15 @@ public abstract class Game {
 		// Update our state observation (forward model) with the information of
 		// the current game state.
 		fwdModel.update(this);
-		// System.out.println(avatars[0].rect);
+		
+		// 记录所有Avatar的位置 - 添加这部分
+		for (int i = 0; i < no_players; i++) {
+			if (avatars[i] != null && !avatars[i].is_disabled()) {
+				avatarPositionHistory[i].add(avatars[i].getPosition().copy());
+			} else {
+				avatarPositionHistory[i].add(null); // 记录null表示Avatar不可用
+			}
+		}
 
 		// Execute a game cycle:
 		this.tick(); // update for all entities.

@@ -3,9 +3,11 @@ import java.util.TreeSet;
 import java.util.ArrayList;
 
 import core.game.Event;
+import core.game.Game;
 import core.game.Observation;
 import core.game.StateObservation;
 import ontology.Types;
+import tools.Vector2d;
 import tracks.ArcadeMachine;
 
 import com.google.gson.Gson;
@@ -20,16 +22,16 @@ public class PlayVGDL {
         public Types.WINNER winner;
         public boolean isGameOver;
         public TreeSet<Event> historyEvents;
-        public ArrayList<Observation>[] avatarSpritesPositions;
+        public ArrayList<Vector2d>[] avatarSpritesPositions;
 
-        public VGDLResultCompatible(StateObservation stateObs) {
+        public VGDLResultCompatible(StateObservation stateObs, Game game) {
             npcs = stateObs.getNoPlayers();
             gameScore = stateObs.getGameScore();
             gameTick = stateObs.getGameTick();
             winner = stateObs.getGameWinner();
             isGameOver = stateObs.isGameOver();
             historyEvents = stateObs.getEventsHistory();
-            avatarSpritesPositions = stateObs.getFromAvatarSpritesPositions();
+            avatarSpritesPositions = game.avatarPositionHistory;
         }
 
     }
@@ -56,8 +58,8 @@ public class PlayVGDL {
                 .serializeSpecialFloatingPointValues()
                 .create();
 
-                
-        var result = new VGDLResultCompatible(obs);
+
+        var result = new VGDLResultCompatible(obs, genGame);
         String jsonResult = gson.toJson(result);
         
         System.out.println("Game finished with JSON result: " + jsonResult);
