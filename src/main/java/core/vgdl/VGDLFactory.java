@@ -234,7 +234,10 @@ public class VGDLFactory
             Class spriteClass = registeredSprites.get(content.referenceClass);
             Constructor spriteConstructor = spriteClass.getConstructor
                     (new Class[] {Vector2d.class, Dimension.class, SpriteContent.class});
-            return (VGDLSprite) spriteConstructor.newInstance(new Object[]{position, dim, content});
+            var sprite = (VGDLSprite) spriteConstructor.newInstance(new Object[]{position, dim, content});
+            sprite.identifier = content.identifier;
+            // System.out.println("Content identifier: " + content.identifier);
+            return sprite;
 
         }catch (NoSuchMethodException e)
         {

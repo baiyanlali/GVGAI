@@ -43,6 +43,8 @@ public abstract class VGDLSprite {
      */
     public String name;
 
+    public String identifier;
+
     /**
      * Indicates if this sprite is static or not.
      */
@@ -352,6 +354,7 @@ public abstract class VGDLSprite {
         color = null;
         only_active = false;
         name = null;
+        identifier = null;
         is_static = false;
         is_avatar = false;
         is_stochastic = false;
@@ -1182,6 +1185,7 @@ public abstract class VGDLSprite {
         toSprite.max_speed = this.max_speed;
         toSprite.img = this.img;
         toSprite.orientedImg = this.orientedImg;
+        toSprite.identifier = this.identifier;
 
         toSprite.itypes = new ArrayList<Integer>();
         for(Integer it : this.itypes)
