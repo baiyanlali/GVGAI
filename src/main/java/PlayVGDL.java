@@ -36,7 +36,7 @@ public class PlayVGDL {
 
     }
 
-    public static void PlayVGDL(String vgdl, String level, boolean visuals){
+    public static String PlayVGDL(String vgdl, String level){
 		String sampleRandomController = "tracks.singlePlayer.simple.sampleRandom.Agent";
 		String doNothingController = "tracks.singlePlayer.simple.doNothing.Agent";
 		String sampleOneStepController = "tracks.singlePlayer.simple.sampleonesteplookahead.Agent";
@@ -51,7 +51,7 @@ public class PlayVGDL {
 
 
 		String recordActionsFile = null;
-		var genGame = ArcadeMachine.runOneGameStr(vgdl, level, visuals, sampleMCTSController, recordActionsFile, seed, 0);
+		var genGame = ArcadeMachine.runOneGameStr(vgdl, level, false, sampleMCTSController, recordActionsFile, seed, 0);
         var obs = genGame.getObservation();
 
         Gson gson = new GsonBuilder()
@@ -63,8 +63,8 @@ public class PlayVGDL {
         String jsonResult = gson.toJson(result);
         
         System.out.println("Game finished with JSON result: " + jsonResult);
-        System.out.println(result.toString());
-        System.exit(0);
+//        System.out.println(result.toString());
+        return jsonResult;
     }
 
     public static void main(String[] args) {
@@ -122,7 +122,7 @@ BasicGame square_size=32
 ...0...0....00....00...00000..
 ................A.............""";
 
-        PlayVGDL(vgdl, level, true);
+        PlayVGDL(vgdl, level);
 
     }
 }
