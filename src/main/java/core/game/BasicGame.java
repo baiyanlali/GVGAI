@@ -28,7 +28,7 @@ public class BasicGame extends Game {
 	 * super.block_size is set to this variable. square_size should be divisible
 	 * by all speeds in the game definition.
 	 */
-	public int square_size;
+	public int square_size = 32;
 
 	/**
 	 * List of sprites that should not be traversable for the pathfinder. This
@@ -56,7 +56,7 @@ public class BasicGame extends Game {
 		charMapping.get('A').add("avatar");
 
 		// Default values for frame rate and maximum number of sprites allowed.
-		square_size = -1;
+		square_size = 32;
 		MAX_SPRITES = 10000;
 
 		// Parse the arguments.
@@ -145,9 +145,9 @@ public class BasicGame extends Game {
 		size.height = desc_lines.length;
 
 		if (square_size != -1) {
-			block_size = square_size;
+			block_size = 32;
 		} else {
-			block_size = Math.max(2, (int) CompetitionParameters.MAX_WINDOW_SIZE / Math.max(size.width, size.height));
+			block_size = 32;
 		}
 
 		if (CompetitionParameters.IS_LEARNING) {

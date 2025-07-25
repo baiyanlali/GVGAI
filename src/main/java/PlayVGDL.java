@@ -110,7 +110,7 @@ public class PlayVGDL {
     public static void main(String[] args) throws IOException {
 
         String vgdl = """
-                BasicGame square_size=32
+                BasicGame
                     SpriteSet
                         background > Immovable img=oryx/space1 hidden=True
                         base    > Immovable    color=WHITE img=oryx/planet
