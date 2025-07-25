@@ -4,6 +4,7 @@ import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Random;
 
 import core.vgdl.VGDLFactory;
@@ -19,6 +20,8 @@ import core.player.Player;
 import ontology.Types;
 import tools.ElapsedCpuTimer;
 import tools.StatSummary;
+
+import javax.tools.*;
 
 /**
  * Created with IntelliJ IDEA. User: Diego Date: 06/11/13 Time: 11:24 This is a
@@ -296,7 +299,96 @@ public class ArcadeMachine {
 	}
 
 
-    /**
+	public static Game runOneGameStrWithAgent(String game_file, String level_file, boolean visuals,
+									 String userCode, String actionFile, int randomSeed, int playerID) throws IOException {
+		VGDLFactory.GetInstance().init(); // This always first thing to do.
+		VGDLRegistry.GetInstance().init();
+
+		if (VERBOSE)
+			System.out.println(" ** Playing game " + game_file + ", level " + level_file + " **");
+
+		if (CompetitionParameters.OS_WIN)
+		{
+			System.out.println(" * WARNING: Time limitations based on WALL TIME on Windows * ");
+		}
+
+		// First, we create the game to be played..
+		Game toPlay = new VGDLParser().parseGameStr(game_file);
+		toPlay.buildLevelStr(level_file, randomSeed);
+
+		// Warm the game up.
+		ArcadeMachine.warmUp(toPlay, CompetitionParameters.WARMUP_TIME);
+
+		// Create the players.
+//		String[] names = agentNames.split(" ");
+		int no_players = 1;
+//		if (no_players > 1 && no_players != names.length) {
+//			// We fill with more human players
+//			String[] newNames = new String[no_players];
+//			System.arraycopy(names, 0, newNames, 0, names.length);
+//			for (int i = names.length; i < no_players; ++i)
+//				newNames[i] = "tracks.multiPlayer.tools.human.Agent";
+//			names = newNames;
+//		}
+
+		boolean humans[] = new boolean[no_players];
+		boolean anyHuman = false;
+
+		// System.out.println("Number of players: " + no_players);
+
+		Player[] players;
+		if (no_players > 1) {
+			// multi player games
+			players = new AbstractMultiPlayer[no_players];
+		} else {
+			// single player games
+			players = new AbstractPlayer[no_players];
+		}
+
+		for (int i = 0; i < no_players; i++) {
+
+			humans[i] = false;
+			anyHuman |= humans[i];
+
+			players[i] = ArcadeMachine.createStringAgent(userCode, actionFile, toPlay.getObservation(), randomSeed, humans[i]);
+
+			if (players[i] == null) {
+				// Something went wrong in the constructor, controller
+				// disqualified
+				if (no_players > 1) {
+					// multi player
+					toPlay.getAvatars()[i].disqualify(true);
+				} else {
+					// single player
+					toPlay.disqualify();
+				}
+
+				// Get the score for the result.
+				toPlay.handleResult();
+				toPlay.printResult();
+				return toPlay;
+			}
+		}
+
+		// Then, play the game.
+		double[] score;
+		if (visuals)
+			score = toPlay.playGame(players, randomSeed, anyHuman, playerID);
+		else
+			score = toPlay.runGame(players, randomSeed);
+
+		// Finally, when the game is over, we need to tear the players down.
+		ArcadeMachine.tearPlayerDown(toPlay, players, actionFile, randomSeed, true);
+
+		// This, the last thing to do in this method, always:
+		toPlay.handleResult();
+		toPlay.printResult();
+
+		return toPlay;
+	}
+
+
+	/**
      * Runs a replay given a game, level and file with the actions to execute.
      * 
      * @param game_file
@@ -466,8 +558,8 @@ public class ArcadeMachine {
 				}
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
-			System.exit(1);
+		 e.printStackTrace();
+		 System.exit(1);
 		}
 
 		// Then, (re-)play the game.
@@ -492,147 +584,75 @@ public class ArcadeMachine {
 		return result;
     }
 
-	public static StatSummary performance;
+	public static AbstractPlayer createStringAgent(String userCode, String actionFile, StateObservation so,
+											int randomSeed, boolean isHuman) throws IOException {
+		// 1. 模拟从前端接收到的用户代码字符串
+		// 假设我们约定用户提交的类名为 "UserSolution"
+		// 并且需要实现一个名为 "solve" 的方法，该方法接收一个字符串参数并返回一个整数。
 
+		// 预计的完整类名 (包含包名)
+		final String fullClassName = "tracks.singlePlayer.simple.selfDefined.Agent";
 
-    /**
-     * Reads and launches a game for a bot to be played. It specifies which
-     * levels to play and how many times. Filenames for saving actions can be
-     * specified. Graphics always off.
-     * 
-     * @param game_file   game description file.
-     * @param level_files  array of level file names to play.
-     * @param level_times   how many times each level has to be played.
-     * @param actionFiles names of the files where the actions of this player, for this
-     *   game, should be recorded. Accepts null if no recording is desired. If not null,
-     *   this array must contain as much String objects as level_files.length*level_times.
-     */
-    public static void runGames(String game_file, String[] level_files, int level_times, String agentName, String[] actionFiles) {
-	VGDLFactory.GetInstance().init(); // This always first thing to do.
-	VGDLRegistry.GetInstance().init();
+		// 获取系统 Java 编译器
+		JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+		if (compiler == null) {
+			System.err.println("找不到 Java 编译器。请确保您使用的是 JDK 而不是 JRE。");
+			return null;
+		}
 
-	boolean recordActions = false;
-	if (actionFiles != null) {
-	    recordActions = true;
-	    assert actionFiles.length >= level_files.length
-		    * level_times : "runGames (actionFiles.length<level_files.length*level_times): "
-			    + "you must supply an action file for each game instance to be played, or null.";
-	}
+		// 用于收集编译错误的诊断监听器
+		DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
-	Game toPlay = new VGDLParser().parseGame(game_file);
-	int levelIdx = 0;
+		// 用于管理编译后字节码的文件管理器
+		InMemoryFileManager fileManager = new InMemoryFileManager(compiler.getStandardFileManager(null, null, null));
 
-	StatSummary[] victories = new StatSummary[toPlay.getNoPlayers()];
-	StatSummary[] scores = new StatSummary[toPlay.getNoPlayers()];
-	for (int i = 0; i < toPlay.getNoPlayers(); i++) {
-	    victories[i] = new StatSummary();
-	    scores[i] = new StatSummary();
-	}
-	performance = new StatSummary();
+		// 准备要编译的源文件对象
+		JavaFileObject sourceFile = new StringJavaFileObject(fullClassName, userCode);
+		Iterable<? extends JavaFileObject> compilationUnits = Collections.singletonList(sourceFile);
 
-	for (String level_file : level_files) {
-	    for (int i = 0; i < level_times; ++i) {
-		if (VERBOSE)
-		    System.out.println(" ** Playing game " + game_file + ", level " + level_file + " (" + (i + 1) + "/"
-			    + level_times + ") **");
+		// 2. 执行编译任务
+		System.out.println("开始动态编译...");
+		JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, null, null,
+				compilationUnits);
+		boolean success = task.call();
 
-		// Determine the random seed, different for each game to be
-		// played.
-		int randomSeed = new Random().nextInt();
+		if (success) {
+			System.out.println("编译成功！");
+			try {
+				// Determine the time due for the controller creation.
+				ElapsedCpuTimer ect = new ElapsedCpuTimer();
+				ect.setMaxTimeMillis(CompetitionParameters.INITIALIZATION_TIME);
+				// 3. 创建自定义类加载器来加载内存中的字节码
+				InMemoryClassLoader classLoader = new InMemoryClassLoader(fileManager.getByteCodeMap());
 
-		// build the level in the game.
-		toPlay.buildLevel(level_file, randomSeed);
+				// 4. 加载用户类
+				System.out.println("正在加载类: " + fullClassName);
+				Class<?> userClass = classLoader.loadClass(fullClassName);
 
-		String filename = recordActions ? actionFiles[levelIdx * level_times + i] : null;
-
-		// Warm the game up.
-		ArcadeMachine.warmUp(toPlay, CompetitionParameters.WARMUP_TIME);
-
-		// Create the player.
-		String[] agentNames = agentName.split(" ");
-		int no_players = agentNames.length;
-
-		int disqCount = 0; // count how many players disqualified
-		double[] score = new double[no_players]; // store scores for all
-							 // the players
-
-		Player[] players;
-		if (no_players > 1) {
-		    // multi player games
-		    players = new AbstractMultiPlayer[no_players];
+				// 5. 通过反射创建实例并调用方法
+				System.out.println("正在创建实例...");
+				// Object instance = userClass.getDeclaredConstructor().newInstance(so, ect.copy());
+                
+                // 获取带参数的构造函数
+                Constructor<?> constructor = userClass.getDeclaredConstructor(StateObservation.class, ElapsedCpuTimer.class);
+                Object instance = constructor.newInstance(so, ect.copy());
+                return (AbstractPlayer) instance;
+			} catch (Exception e) {
+				System.err.println("执行用户代码时出错:");
+				e.printStackTrace();
+			}
 		} else {
-		    // single player games
-		    players = new AbstractPlayer[no_players];
+			System.err.println("编译失败！");
+			// 6. 如果编译失败，打印详细错误
+			for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+				System.err.format("错误: %s\n行号: %d\n源码: %s\n",
+						diagnostic.getMessage(null),
+						diagnostic.getLineNumber(),
+						diagnostic.getSource().getCharContent(true));
+			}
 		}
-
-		for (int j = 0; j < no_players; j++) {
-		    if (no_players > 1) {
-			// multi player
-			players[j] = ArcadeMachine.createMultiPlayer(agentNames[j], filename,
-				toPlay.getObservationMulti(j), randomSeed, j, false);
-		    } else {
-			// single player
-			players[j] = ArcadeMachine.createPlayer(agentNames[j], filename, toPlay.getObservation(),
-				randomSeed, false);
-		    }
-		    score[j] = -1;
-		    if (players[j] == null) {
-				// Something went wrong in the constructor, controller
-				// disqualified
-				// toPlay.disqualify(j);
-				toPlay.getAvatars()[j].disqualify(true);
-
-				disqCount++;
-		    }
-		}
-
-		// Play the game if at least 2 players in multiplayer games or
-		// at least 1 in single player.
-		// Get array of scores back.
-		if ((no_players - disqCount) >= toPlay.no_players) {
-		    score = toPlay.runGame(players, randomSeed);
-		    //score = toPlay.playGame(players, randomSeed, false, 0);
-		    toPlay.printResult();
-		} else {
-		    // Get the score for the result.
-		    score = toPlay.handleResult();
-		    toPlay.printResult();
-		}
-
-		// Finally, when the game is over, we need to tear the players
-		// down.
-		if (!ArcadeMachine.tearPlayerDown(toPlay, players, filename, randomSeed, true)) {
-		    score = toPlay.handleResult();
-		    toPlay.printResult();
-		}
-
-		// Get players stats
-		for (Player player : players)
-		    if (player != null) {
-			int id = player.getPlayerID();
-			scores[id].add(score[id]);
-			victories[id].add(toPlay.getWinner(id) == Types.WINNER.PLAYER_WINS ? 1 : 0);
-		    }
-
-		// reset the game.
-		toPlay.reset();
-	    }
-
-	    levelIdx++;
+		return null;
 	}
-
-	String vict = "", sc = "";
-	for (int i = 0; i < toPlay.no_players; i++) {
-	    vict += victories[i].mean();
-	    sc += scores[i].mean();
-	    if (i != toPlay.no_players - 1) {
-		vict += ", ";
-		sc += ", ";
-	    }
-	}
-	System.out.println("Results in game " + game_file + ", " + vict + " , " + sc);
-	 	//+ " , " + performance.mean());
-    }
 
     /**
      * Creates a player given its name with package. This class calls the
